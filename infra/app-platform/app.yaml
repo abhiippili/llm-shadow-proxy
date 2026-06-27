@@ -1,34 +1,76 @@
 name: llm-shadow-proxy
+region: blr
 
 services:
   - name: proxy
+    github:
+      repo: abhiippili/llm-shadow-proxy
+      branch: main
+      deploy_on_push: false
     source_dir: services/proxy
     http_port: 8000
     instance_count: 1
     instance_size_slug: basic-xxs
+    run_command: uvicorn app.main:app --host 0.0.0.0 --port 8000
     routes:
       - path: /
+    envs:
+      - key: PRIMARY_LLM_URL
+        value: ${primary-llm.PRIVATE_URL}
+      - key: CANDIDATE_LLM_URL
+        value: ${candidate-llm.PRIVATE_URL}
+      - key: JUDGE_URL
+        value: ${judge.PRIVATE_URL}
+      - key: MONGODB_URL
+        scope: RUN_TIME
+        type: SECRET
+      - key: MONGODB_DB_NAME
+        value: shadowproxy
+      - key: REDIS_URL
+        scope: RUN_TIME
+        type: SECRET
+      - key: ENV
+        value: production
+      - key: PRIMARY_TIMEOUT
+        value: "10"
+      - key: CANDIDATE_TIMEOUT
+        value: "30"
+      - key: JUDGE_TIMEOUT
+        value: "10"
+      - key: DIVERGENCE_RATE
+        value: "0.3"
+      - key: RESPONSE_DELAY_SECONDS
+        value: "0"
 
   - name: primary-llm
+    github:
+      repo: abhiippili/llm-shadow-proxy
+      branch: main
+      deploy_on_push: false
     source_dir: services/primary-llm
     http_port: 8001
     instance_count: 1
     instance_size_slug: basic-xxs
-    routes:
-      - path: /primary
+    run_command: uvicorn app.main:app --host 0.0.0.0 --port 8001
 
   - name: candidate-llm
+    github:
+      repo: abhiippili/llm-shadow-proxy
+      branch: main
+      deploy_on_push: false
     source_dir: services/candidate-llm
     http_port: 8002
     instance_count: 1
     instance_size_slug: basic-xxs
-    routes:
-      - path: /candidate
+    run_command: uvicorn app.main:app --host 0.0.0.0 --port 8002
 
   - name: judge
+    github:
+      repo: abhiippili/llm-shadow-proxy
+      branch: main
+      deploy_on_push: false
     source_dir: services/judge
     http_port: 8003
     instance_count: 1
     instance_size_slug: basic-xxs
-    routes:
-      - path: /judge
+    run_command: uvicorn app.main:app --host 0.0.0.0 --port 8003

@@ -15,11 +15,15 @@ jobs:
         with:
           token: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
 
+      - name: Validate app spec
+        run: doctl apps spec validate infra/app-platform/app.yaml
+
       - name: Deploy to App Platform
         run: |
-          # Update the existing app if DO_APP_ID secret is set, otherwise create it
           if [ -n "${{ secrets.DO_APP_ID }}" ]; then
-            doctl apps update ${{ secrets.DO_APP_ID }} --spec infra/app-platform/app.yaml --no-wait
+            echo "Updating existing app ${{ secrets.DO_APP_ID }}"
+            doctl apps update ${{ secrets.DO_APP_ID }} --spec infra/app-platform/app.yaml
           else
-            doctl apps create --spec infra/app-platform/app.yaml --no-wait
+            echo "Creating new app"
+            doctl apps create --spec infra/app-platform/app.yaml
           fi
