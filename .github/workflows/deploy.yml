@@ -1,0 +1,25 @@
+name: Deploy to DO App Platform
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install doctl
+        uses: digitalocean/action-doctl@v2
+        with:
+          token: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
+
+      - name: Deploy to App Platform
+        run: |
+          # Update the existing app if DO_APP_ID secret is set, otherwise create it
+          if [ -n "${{ secrets.DO_APP_ID }}" ]; then
+            doctl apps update ${{ secrets.DO_APP_ID }} --spec infra/app-platform/app.yaml --no-wait
+          else
+            doctl apps create --spec infra/app-platform/app.yaml --no-wait
+          fi

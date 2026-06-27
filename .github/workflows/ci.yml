@@ -1,0 +1,85 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Run judge unit tests
+        run: |
+          pip install -r services/judge/requirements.txt -q
+          cd services/judge && pytest tests/unit/ -v --cov=app --cov-report=xml
+
+      - name: Run proxy unit tests
+        run: |
+          pip install -r services/proxy/requirements.txt -q
+          cd services/proxy && pytest tests/unit/ -v --cov=app --cov-report=xml
+
+  integration:
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Start infra
+        run: |
+          mkdir -p /tmp/mongodata
+          mongod --dbpath /tmp/mongodata --port 27017 --fork --logpath /tmp/mongod.log
+          redis-server --daemonize yes
+          sleep 3
+
+      - name: Install service dependencies
+        run: |
+          pip install -r services/primary-llm/requirements.txt -q
+          pip install -r services/candidate-llm/requirements.txt -q
+          pip install -r services/judge/requirements.txt -q
+          pip install -r services/proxy/requirements.txt -q
+
+      - name: Start mock services
+        # use --app-dir so CWD stays at project root and each service finds app/
+        # candidate runs with RESPONSE_DELAY_SECONDS=2 so the decoupling test is meaningful
+        run: |
+          uvicorn app.main:app --app-dir services/primary-llm --host 0.0.0.0 --port 8001 &
+          RESPONSE_DELAY_SECONDS=2 uvicorn app.main:app --app-dir services/candidate-llm --host 0.0.0.0 --port 8002 &
+          uvicorn app.main:app --app-dir services/judge --host 0.0.0.0 --port 8003 &
+          sleep 3
+
+      - name: Start proxy
+        run: |
+          uvicorn app.main:app --app-dir services/proxy --host 0.0.0.0 --port 8000 &
+          sleep 3
+        env:
+          PRIMARY_LLM_URL: http://localhost:8001
+          CANDIDATE_LLM_URL: http://localhost:8002
+          JUDGE_URL: http://localhost:8003
+          MONGODB_URL: mongodb://localhost:27017/shadowproxy
+          MONGODB_DB_NAME: shadowproxy
+          REDIS_URL: redis://localhost:6379
+
+      - name: Run integration tests
+        run: |
+          cd services/proxy && pytest tests/integration/ -v
+        env:
+          PRIMARY_LLM_URL: http://localhost:8001
+          CANDIDATE_LLM_URL: http://localhost:8002
+          JUDGE_URL: http://localhost:8003
+          MONGODB_URL: mongodb://localhost:27017/shadowproxy
+          MONGODB_DB_NAME: shadowproxy
+          REDIS_URL: redis://localhost:6379
