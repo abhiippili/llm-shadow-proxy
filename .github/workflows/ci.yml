@@ -13,7 +13,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
@@ -34,16 +34,19 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
-      - name: Start infra
-        run: |
-          mkdir -p /tmp/mongodata
-          mongod --dbpath /tmp/mongodata --port 27017 --fork --logpath /tmp/mongod.log
-          redis-server --daemonize yes
-          sleep 3
+      - name: Start MongoDB
+        uses: supercharge/mongodb-github-action@1.11.0
+        with:
+          mongodb-version: '7.0'
+
+      - name: Start Redis
+        uses: supercharge/redis-github-action@1.7.0
+        with:
+          redis-version: 7
 
       - name: Install service dependencies
         run: |
@@ -53,8 +56,6 @@ jobs:
           pip install -r services/proxy/requirements.txt -q
 
       - name: Start mock services
-        # use --app-dir so CWD stays at project root and each service finds app/
-        # candidate runs with RESPONSE_DELAY_SECONDS=2 so the decoupling test is meaningful
         run: |
           uvicorn app.main:app --app-dir services/primary-llm --host 0.0.0.0 --port 8001 &
           RESPONSE_DELAY_SECONDS=2 uvicorn app.main:app --app-dir services/candidate-llm --host 0.0.0.0 --port 8002 &
