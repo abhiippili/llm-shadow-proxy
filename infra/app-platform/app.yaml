@@ -6,7 +6,7 @@ services:
     github:
       repo: abhiippili/llm-shadow-proxy
       branch: main
-      deploy_on_push: false
+      deploy_on_push: true
     source_dir: services/proxy
     dockerfile_path: services/proxy/Dockerfile
     http_port: 8000
